@@ -1,15 +1,15 @@
 {
-    "Description":"Template to automatically provision SSM Document on AWS for Qualys Cloud Agent Deployment",
-    "Metadata":{
+    "Description": "Template to automatically provision SSM Document on AWS for Qualys Cloud Agent Deployment",
+    "Metadata": {
         "Author": "Nischay Sinha",
         "Version": "1.0",
-        "Updated": "08/09/2022"
+        "Updated": "07/02/2023"
     },
-    "Parameters":{
-        "SSMdocumentName":{
+    "Parameters": {
+        "SSMdocumentName": {
             "Type": "String",
             "Default": "",
-            "Description":"Name of the SSM Document to be created"
+            "Description": "Name of the SSM Document to be created"
         }
     },
     "Resources": {
@@ -47,7 +47,6 @@
                             "type": "String",
                             "default": "",
                             "description": "Qualys Password"
-                            
                         },
                         "LogLevel": {
                             "type": "String",
@@ -87,29 +86,56 @@
                                     "then",
                                     "     # Check whether the OS is Debian or RPM based Linux and set the download location",
                                     "     os=$( grep -Ei 'debian|ubuntu|mint' /etc/*release )",
+                                    "     architecture=$(uname -m)",
                                     "     if [[ -n \"$os\" || -f \"/etc/debian_version\" ]];",
                                     "     then",
                                     "         opersys=\"deb\"",
-                                    "         echo '<?xml version=\"1.0\" encoding=\"UTF-8\"?>",
-                                    "                <ServiceRequest>",
-                                    "                 <data>",
-                                    "                 <DownloadBinary>",
-                                    "                 <platform>LINUX_UBUNTU</platform>",
-                                    "                 <architecture>X_64</architecture>",
-                                    "                 </DownloadBinary>",
-                                    "                 </data>",
-                                    "                </ServiceRequest>' > download_binary.xml ",
+                                    "         if [[ $architecture == *\"aarch\"* ]]",
+                                    "         then",
+                                    "             echo '<?xml version=\"1.0\" encoding=\"UTF-8\"?>",
+                                    "                    <ServiceRequest>",
+                                    "                     <data>",
+                                    "                     <DownloadBinary>",
+                                    "                     <platform>LINUX_UBUNTU</platform>",
+                                    "                     <architecture>ARM_64</architecture>",
+                                    "                     </DownloadBinary>",
+                                    "                     </data>",
+                                    "                    </ServiceRequest>' > download_binary.xml ",
+                                    "          else",
+                                    "             echo '<?xml version=\"1.0\" encoding=\"UTF-8\"?>",
+                                    "                    <ServiceRequest>",
+                                    "                     <data>",
+                                    "                     <DownloadBinary>",
+                                    "                     <platform>LINUX_UBUNTU</platform>",
+                                    "                     <architecture>X_64</architecture>",
+                                    "                     </DownloadBinary>",
+                                    "                     </data>",
+                                    "                    </ServiceRequest>' > download_binary.xml ",
+                                    "         fi",
                                     "     else",
                                     "         opersys=\"rpm\"",
-                                    "         echo '<?xml version=\"1.0\" encoding=\"UTF-8\"?>",
-                                    "               <ServiceRequest>",
-                                    "                <data>",
-                                    "                <DownloadBinary>",
-                                    "                <platform>LINUX</platform>",
-                                    "                <architecture>X_64</architecture>",
-                                    "                </DownloadBinary>",
-                                    "                </data>",
-                                    "               </ServiceRequest>' > download_binary.xml  ",
+                                    "         if [[ $architecture == *\"aarch\"* ]]",
+                                    "         then",
+                                    "             echo '<?xml version=\"1.0\" encoding=\"UTF-8\"?>",
+                                    "                   <ServiceRequest>",
+                                    "                    <data>",
+                                    "                    <DownloadBinary>",
+                                    "                    <platform>LINUX</platform>",
+                                    "                    <architecture>ARM_64</architecture>",
+                                    "                    </DownloadBinary>",
+                                    "                    </data>",
+                                    "                   </ServiceRequest>' > download_binary.xml  ",
+                                    "        else",
+                                    "             echo '<?xml version=\"1.0\" encoding=\"UTF-8\"?>",
+                                    "                   <ServiceRequest>",
+                                    "                    <data>",
+                                    "                    <DownloadBinary>",
+                                    "                    <platform>LINUX</platform>",
+                                    "                    <architecture>X_64</architecture>",
+                                    "                    </DownloadBinary>",
+                                    "                    </data>",
+                                    "                   </ServiceRequest>' > download_binary.xml  ",
+                                    "       fi",
                                     "     fi",
                                     "     Downloadfile()",
                                     "     {",
@@ -233,12 +259,74 @@
                                     "}"
                                 ]
                             }
+                        },
+                        {
+                            "precondition": {
+                                "StringEquals": [
+                                    "platformType",
+                                    "MacOS"
+                                ]
+                            },
+                            "action": "aws:runShellScript",
+                            "name": "InstallQualysCloudAgentOnMacOS",
+                            "inputs": {
+                                "id": "0.aws:runShellScript",
+                                "timeoutSeconds": 600,
+                                "runCommand": [
+                                    "#!/bin/bash",
+                                    "#set -eux",
+                                    "#Check Whether the Qualys Cloud Agent is already installed",
+                                    "apiendpoint=\"/qps/rest/1.0/download/ca/downloadbinary/\"",
+                                    "INSTALLER_FILE_URL=\"{{ QualysAPIUri }}${apiendpoint}\"",
+                                    "status=$(launchctl print system/com.qualys.cloud-agent | grep running)",
+                                    "if [[ -z \"$status\" ]];",
+                                    "then",
+                                    "# Downloading the file to the /System/Volumes/Data/Applications ",
+                                    "     pth='/System/Volumes/Data/Applications'",
+                                    "     echo '<?xml version=\"1.0\" encoding=\"UTF-8\"?>",
+                                    "            <ServiceRequest>",
+                                    "             <data>",
+                                    "             <DownloadBinary>",
+                                    "             <platform>MACOSX</platform>",
+                                    "             <architecture>X_64</architecture>",
+                                    "             </DownloadBinary>",
+                                    "             </data>",
+                                    "            </ServiceRequest>' > $pth/download_binary.xml ",
+                                    "     Downloadfile()",
+                                    "     {",
+                                    "         cd $pth",
+                                    "         curl -u '{{ UserName }}':'{{ Password }}' -X POST -H \"Content-Type: text/xml\" -H \"X-Requested-With: curl\" --data-binary @download_binary.xml ${INSTALLER_FILE_URL} --remote-name --remote-header-name",
+                                    "         if [[ $? != 0 ]];",
+                                    "         then",
+                                    "             echo \"Failed to download installer from ${INSTALLER_FILE_URL}\"",
+                                    "             exit 3",
+                                    "         fi",
+                                    "     }",
+                                    "     # Checks whether agent location is a FQDN or full path and invoke download or copy function ",
+                                    "     if [[ -n \"$INSTALLER_FILE_URL\" ]]; ",
+                                    "     then",
+                                    "                 Downloadfile",
+                                    "     else",
+                                    "         echo \"No installation path specified for Qualys Cloud Agent\"",
+                                    "             exit 4",
+                                    "     fi",
+                                    "                 sleep 15",
+                                    "                 sudo installer -pkg ./QualysCloudAgent.pkg  -target /",
+                                    "                 sleep 15",
+                                    "                 sudo bash -c \"if [[ -f /usr/local/qualys/cloud-agent/bin/qualys-cloud-agent.sh ]]; then /usr/local/qualys/cloud-agent/bin/qualys-cloud-agent.sh LogLevel={{ LogLevel }} ActivationId={{ ActivationID }} CustomerId={{ CustomerID }} ServerUri={{ WebServiceUri }}; else /Applications/QualysCloudAgent.app/Contents/MacOS/qualys-cloud-agent.sh LogLevel={{ LogLevel }} ActivationId={{ ActivationID }} CustomerId={{ CustomerID }} ServerUri={{ WebServiceUri }}; fi\"",
+                                    "else",
+                                    "echo \"QualysCloudAgent is already installed on this and running\"",
+                                    "fi"
+                                ]
+                            }
                         }
                     ]
                 },
                 "DocumentFormat": "JSON",
                 "DocumentType": "Command",
-                "Name": { "Ref" : "SSMdocumentName" }
+                "Name": {
+                    "Ref": "SSMdocumentName"
+                }
             }
         }
     }
