@@ -1,7 +1,7 @@
 {
     "Description": "Template to automatically provision SSM Document on AWS for Qualys Cloud Agent Deployment",
     "Metadata": {
-        "Author": "Nischay Sinha",
+        "Owner": "Qualys",
         "Version": "1.0",
         "Updated": "07/02/2023"
     },
